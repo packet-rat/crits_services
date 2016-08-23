@@ -1,5 +1,11 @@
+# IP to Decimal/Decimal to Ip
+import socket, struct
+ip2int = lambda ip: reduce(lambda a, b: (a << 8) + b, map(int, ip.split('.')), 0)
+int2ip = lambda n: '.'.join([str(n >> (i << 3) & 0xFF) for i in range(0, 4)[::-1]])
+
 import re
 import logging
+
 
 from crits.services.core import Service, ServiceConfigError
 from crits.events.event import Event
@@ -10,20 +16,25 @@ from crits.indicators.indicator import Indicator
 from crits.core.data_tools import make_ascii_strings
 from crits.vocabulary.indicators import IndicatorTypes
 
+# "IP to Decimal", and "Decimal to IP" for sorting IP Address Results
+import socket, struct
+ip2int = lambda ip: reduce(lambda a, b: (a << 8) + b, map(int, ip.split('.')), 0)
+int2ip = lambda n: '.'.join([str(n >> (i << 3) & 0xFF) for i in range(0, 4)[::-1]])
+
 logger = logging.getLogger(__name__)
+
 
 
 class DataMinerService(Service):
     """
     Mine data for useful information
-
     Currently this service only runs on RawData and Samples. This could be
     expanded to work on email bodies + headers or other top-level objects which
     contain a chunk of data ripe for parsing potential indicators.
     """
 
     name = "DataMiner"
-    version = '1.0.0'
+    version = '1.0.1'
     template = "data_miner_service_template.html"
     supported_types = ['Event', 'RawData', 'Sample']
     description = "Mine a chunk of data for useful information."
@@ -92,46 +103,63 @@ class DataMinerService(Service):
 # hack of a parser to extract potential ip addresses from data
 def extract_ips(data):
     pattern = r"((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)([ (\[]?(\.|dot)[ )\]]?(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3})"
+    unique_ips = []
+    unique_decimal_ips = []
     ips = [each[0] for each in re.findall(pattern, data)]
     for item in ips:
         location = ips.index(item)
         ip = re.sub("[ ()\[\]]", "", item)
         ip = re.sub("dot", ".", ip)
         ips.remove(item)
-        ips.insert(location, ip)
-    return ips
+        if ip not in unique_ips : 
+            unique_ips.append(ip)
+    # Convert the list of unique IP Addresses to Decimal so we can sort
+    for item in unique_ips :
+        unique_decimal_ips = ip2int(item)
+    unique_decimal.ips.sort()
+    # Convert the sorted list from Decimal back to IP Addresses 
+    unique_ips = []
+    for item in unique_decimal_ips :
+        unique_ips = int2ip(item)
+    return unique_ips
 
 # hack of a parser to extract potential domains from data
 def extract_domains(data):
-    pattern = r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[\.[a-zA-Z]{2,}'
+    pattern = r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[\.][a-zA-Z]{2,}'
     domains = [each for each in re.findall(pattern, data) if len(each) > 0]
     final_domains = []
+    unique_domains = []
     for item in domains:
         if len(item) > 1 and item.find('.') != -1:
             try:
                 tld = item.split(".")[-1]
                 check = TLD.objects(tld=tld).first()
                 if check:
-                    final_domains.append(item)
+                    if item not in unique_domains:
+                        unique_domains.append(item)
             except:
                 pass
-    return final_domains
+    unique_domains.sort()
+    return unique_domains
 
 # hack of a parser to extract potential emails from data
 def extract_emails(data):
-    pattern = r'[a-zA-Z0-9-\.\+]+@.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[\.[a-zA-Z]{2,}'
+    pattern = r'[a-zA-Z0-9-\.\+]+@.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[\.][a-zA-Z]{2,}'
     emails = [each for each in re.findall(pattern, data) if len(each) > 0]
     final_emails = []
+    unique_emails = []
     for item in emails:
         if len(item) > 1 and item.find('.') != -1:
             try:
                 tld = item.split(".")[-1]
                 check = TLD.objects(tld=tld).first()
                 if check:
-                    final_emails.append(item)
+                    if item not in unique_emails :
+                        unique_emails.append(item)         
             except:
                 pass
-    return final_emails
+    unique_emails.sort()
+    return unique_emails
 
 # hack of a parser to extract potential domains from data
 def extract_hashes(data):
@@ -142,6 +170,7 @@ def extract_hashes(data):
     re_ssdeep = re.compile("\\b\\d{2}:[A-Za-z0-9/+]{3,}:[A-Za-z0-9/+]{3,}\\b", re.I | re.S | re.M)
 
     final_hashes = []
+    unique_hashes = [] 
     md5 = IndicatorTypes.MD5
     sha1 = IndicatorTypes.SHA1
     sha256 = IndicatorTypes.SHA256
@@ -158,5 +187,9 @@ def extract_hashes(data):
     final_hashes.extend(
         [(ssdeep,each) for each in re.findall(re_ssdeep, data) if len(each) > 0]
     )
-    return final_hashes
-
+    for item in final_hashes :
+        if item not in unique_hashes : 
+            unique_hashes.append(item)
+    
+    unique_hashes.sort()
+    return unique_hashes
