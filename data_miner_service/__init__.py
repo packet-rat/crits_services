@@ -1,8 +1,3 @@
-# IP to Decimal/Decimal to Ip
-import socket, struct
-ip2int = lambda ip: reduce(lambda a, b: (a << 8) + b, map(int, ip.split('.')), 0)
-int2ip = lambda n: '.'.join([str(n >> (i << 3) & 0xFF) for i in range(0, 4)[::-1]])
-
 import re
 import logging
 
@@ -15,11 +10,8 @@ from crits.domains.domain import TLD
 from crits.indicators.indicator import Indicator
 from crits.core.data_tools import make_ascii_strings
 from crits.vocabulary.indicators import IndicatorTypes
-
-# "IP to Decimal", and "Decimal to IP" for sorting IP Address Results
 import socket, struct
-ip2int = lambda ip: reduce(lambda a, b: (a << 8) + b, map(int, ip.split('.')), 0)
-int2ip = lambda n: '.'.join([str(n >> (i << 3) & 0xFF) for i in range(0, 4)[::-1]])
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +30,10 @@ class DataMinerService(Service):
     template = "data_miner_service_template.html"
     supported_types = ['Event', 'RawData', 'Sample']
     description = "Mine a chunk of data for useful information."
+    
+    # "IP to Decimal", and "Decimal to IP" for sorting IP Address Results
+    ip2int = lambda ip: reduce(lambda a, b: (a << 8) + b, map(int, ip.split('.')), 0)
+    int2ip = lambda n: '.'.join([str(n >> (i << 3) & 0xFF) for i in range(0, 4)[::-1]])
 
     @staticmethod
     def valid_for(obj):
